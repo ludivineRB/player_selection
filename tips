@@ -1,0 +1,398 @@
+Très bon projet — c’est exactement le type de data platform pour le sport qu’on peut construire avec une architecture claire.
+Je vais te proposer une modélisation complète adaptée au handball pour :
+
+stocker joueuses / équipes / matchs
+
+stocker statistiques détaillées
+
+préparer les données pour machine learning (sélection joueuses + prédiction match)
+
+Je vais structurer ça en :
+
+1️⃣ MCD (Modèle Conceptuel de Données)
+2️⃣ MLD (Modèle Logique)
+3️⃣ MPD (Modèle Physique SQL)
+4️⃣ Tables utiles pour le Machine Learning
+
+1️⃣ MCD — Modèle Conceptuel de Données
+
+(entités + relations métier)
+
+Entités principales
+
+JOUEUSE
+
+id_joueuse
+
+nom
+
+prénom
+
+date_naissance
+
+poste
+
+taille
+
+poids
+
+club
+
+EQUIPE
+
+id_equipe
+
+nom_equipe
+
+niveau (départemental, régional…)
+
+categorie (senior, -18…)
+
+MATCH
+
+id_match
+
+date_match
+
+lieu
+
+competition
+
+saison
+
+score_domicile
+
+score_exterieur
+
+FEUILLE_MATCH
+
+(feuille officielle du match)
+
+id_feuille
+
+id_match
+
+arbitres
+
+observateur
+
+pdf_source
+
+STAT_JOUEUSE_MATCH
+
+(stats individuelles)
+
+id_stat
+
+id_joueuse
+
+id_match
+
+buts
+
+tirs
+
+passes
+
+interceptions
+
+pertes_balle
+
+fautes
+
+temps_jeu
+
+COMPOSITION_EQUIPE
+
+(joueuses sélectionnées pour un match)
+
+id_compo
+
+id_match
+
+id_equipe
+
+id_joueuse
+
+titulaire (boolean)
+
+Relations
+JOUEUSE
+   |
+   | joue
+   |
+STAT_JOUEUSE_MATCH
+   |
+   | concerne
+   |
+MATCH
+MATCH
+   |1
+   |
+   | possède
+   |
+FEUILLE_MATCH
+MATCH
+   |
+   | contient
+   |
+COMPOSITION_EQUIPE
+   |
+   | inclut
+   |
+JOUEUSE
+2️⃣ MLD — Modèle Logique de Données
+
+Transformation relationnelle.
+
+JOUEUSE
+JOUEUSE
+---------
+id_joueuse (PK)
+nom
+prenom
+date_naissance
+poste
+taille
+poids
+id_equipe (FK)
+EQUIPE
+EQUIPE
+---------
+id_equipe (PK)
+nom_equipe
+niveau
+categorie
+MATCH
+MATCH
+---------
+id_match (PK)
+date_match
+lieu
+competition
+saison
+id_equipe_domicile (FK)
+id_equipe_exterieur (FK)
+score_domicile
+score_exterieur
+FEUILLE_MATCH
+FEUILLE_MATCH
+---------
+id_feuille (PK)
+id_match (FK)
+pdf_url
+date_import
+COMPOSITION_EQUIPE
+COMPOSITION_EQUIPE
+---------
+id_compo (PK)
+id_match (FK)
+id_equipe (FK)
+id_joueuse (FK)
+titulaire
+poste
+STAT_JOUEUSE_MATCH
+STAT_JOUEUSE_MATCH
+---------
+id_stat (PK)
+id_joueuse (FK)
+id_match (FK)
+
+buts
+tirs
+passes
+interceptions
+pertes_balle
+fautes
+temps_jeu
+3️⃣ MPD — Modèle Physique (SQL)
+
+Voici un exemple PostgreSQL / SQLite.
+
+CREATE TABLE equipe (
+    id_equipe SERIAL PRIMARY KEY,
+    nom_equipe TEXT,
+    niveau TEXT,
+    categorie TEXT
+);
+
+CREATE TABLE joueuse (
+    id_joueuse SERIAL PRIMARY KEY,
+    nom TEXT,
+    prenom TEXT,
+    date_naissance DATE,
+    poste TEXT,
+    taille INT,
+    poids INT,
+    id_equipe INT REFERENCES equipe(id_equipe)
+);
+
+CREATE TABLE match (
+    id_match SERIAL PRIMARY KEY,
+    date_match DATE,
+    lieu TEXT,
+    competition TEXT,
+    saison TEXT,
+    id_equipe_domicile INT REFERENCES equipe(id_equipe),
+    id_equipe_exterieur INT REFERENCES equipe(id_equipe),
+    score_domicile INT,
+    score_exterieur INT
+);
+
+CREATE TABLE feuille_match (
+    id_feuille SERIAL PRIMARY KEY,
+    id_match INT REFERENCES match(id_match),
+    pdf_url TEXT,
+    date_import TIMESTAMP
+);
+
+CREATE TABLE composition_equipe (
+    id_compo SERIAL PRIMARY KEY,
+    id_match INT REFERENCES match(id_match),
+    id_equipe INT REFERENCES equipe(id_equipe),
+    id_joueuse INT REFERENCES joueuse(id_joueuse),
+    titulaire BOOLEAN,
+    poste TEXT
+);
+
+CREATE TABLE stat_joueuse_match (
+    id_stat SERIAL PRIMARY KEY,
+    id_joueuse INT REFERENCES joueuse(id_joueuse),
+    id_match INT REFERENCES match(id_match),
+
+    buts INT,
+    tirs INT,
+    passes INT,
+    interceptions INT,
+    pertes_balle INT,
+    fautes INT,
+    temps_jeu INT
+);
+4️⃣ Tables pour Machine Learning
+
+Pour ton projet de prédiction, tu auras besoin d’une table d’entraînement.
+
+Table FEATURES_MATCH
+FEATURES_MATCH
+----------------
+
+id_match
+equipe
+
+moyenne_buts_5_matchs
+moyenne_tirs
+moyenne_interceptions
+forme_equipe
+classement
+
+force_adversaire
+home_advantage
+
+target_victoire
+Table FEATURES_JOUEUSE
+
+Pour prédire la sélection.
+
+FEATURES_JOUEUSE
+
+id_joueuse
+id_match
+
+moyenne_buts_5_matchs
+moyenne_temps_jeu
+efficacite_tir
+forme_recente
+
+selectionnee
+5️⃣ Architecture Data du projet
+
+Je te conseille cette architecture :
+
+SCRAPING
+   |
+   | (PDF + site FFHB)
+   v
+RAW DATA
+   |
+   | nettoyage
+   v
+DATABASE
+(PostgreSQL)
+
+   |
+   | feature engineering
+   v
+DATASET ML
+
+   |
+   | models
+   v
+PREDICTIONS
+6️⃣ Modèles ML possibles
+Prédire résultat match
+
+Classification :
+
+Logistic Regression
+
+XGBoost
+
+LightGBM
+
+CatBoost
+
+Target :
+
+victoire_domicile
+Sélection joueuses
+
+Classification :
+
+selectionnée / non sélectionnée
+
+Features :
+
+forme récente
+
+efficacité tir
+
+temps de jeu
+
+adversaire
+
+historique coach
+
+7️⃣ Bonus (très puissant)
+
+Tu peux créer un score de performance joueuse :
+
+performance_score =
+    buts*3
+  + passes*2
+  + interceptions*2
+  - pertes_balle
+  - fautes
+
+Puis l’utiliser dans le modèle.
+
+💡 Vu ton profil data scientist + ML, ce projet peut devenir très solide si tu ajoutes :
+
+tracking performance joueurs
+
+ranking type Elo des équipes
+
+modèle probabiliste du score
+
+dashboard Streamlit / PowerBI
+
+Si tu veux, je peux aussi te faire :
+
+1️⃣ le diagramme MCD visuel (propre pour rapport ou mémoire)
+2️⃣ un pipeline complet scraping → base → features → ML
+3️⃣ un modèle prédictif déjà entraînable sur ces données
+
+et ça peut devenir un vrai projet portfolio sport analytics. 🤾‍♀️📊
+
+
+
+API handball : https://api-sports.io/documentation/handball/v1
